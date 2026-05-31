@@ -1,18 +1,697 @@
-<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>HemoVet</title><script src="https://unpkg.com/react@18/umd/react.production.min.js"></script><script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script><script src="https://unpkg.com/@babel/standalone/babel.min.js"></script><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;background:#f8fafc}</style></head><body><div id="root"></div><script type="text/babel">
-const {useState}=React;
-const USERS=[{login:"gabrielle",senha:"123456",nome:"Gabrielle"}];
-function App(){
-const [user,setUser]=useState(null);
-const [loginV,setLoginV]=useState("");
-const [senhaV,setSenhaV]=useState("");
-const [err,setErr]=useState("");
-const doLogin=()=>{
-const u=USERS.find(x=>x.login===loginV.trim()&&x.senha===senhaV);
-if(u)setUser(u);else setErr("Login ou senha incorretos.");
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<title>HemoVet — Banco de Sangue Animal</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+body { margin: 0; font-family: 'DM Sans', sans-serif; }
+* { box-sizing: border-box; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo, useCallback } = React;
+
+
+const USERS = [{ login: "gabrielle", senha: "123456", nome: "Gabrielle" }];
+
+let _id = 200;
+const uid = () => String(++_id);
+const daysAgo = (d) => { const dt = new Date(); dt.setDate(dt.getDate() - d); return dt.toISOString().split("T")[0]; };
+const todayStr = () => new Date().toISOString().split("T")[0];
+const daysSince = (d) => Math.floor((Date.now() - new Date(d + "T00:00:00")) / 86400000);
+const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "—";
+const sIcon = (e) => e === "gato" ? "🐱" : "🐶";
+const mName = (m) => ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][m-1];
+
+const T0 = [
+  { id:"t1", nome:"Carlos Mendes", telefone:"(11) 98765-4321", email:"carlos@email.com", cidade:"São Paulo" },
+  { id:"t2", nome:"Ana Souza",     telefone:"(11) 91234-5678", email:"ana@email.com",    cidade:"Campinas" },
+  { id:"t3", nome:"João Lima",     telefone:"(21) 99876-5432", email:"joao@email.com",   cidade:"Rio de Janeiro" },
+];
+const A0 = [
+  { id:"a1", tutor_id:"t1", nome:"Thor",  especie:"cachorro", raca:"Labrador",         peso:32,  idade:4, sexo:"M", tipo_sanguineo:"DEA 1.1+", status:"coletado" },
+  { id:"a2", tutor_id:"t2", nome:"Luna",  especie:"gato",     raca:"SRD",              peso:5.2, idade:3, sexo:"F", tipo_sanguineo:"A",        status:"coletado" },
+  { id:"a3", tutor_id:"t3", nome:"Max",   especie:"cachorro", raca:"Golden Retriever", peso:28,  idade:5, sexo:"M", tipo_sanguineo:"DEA 1.1-", status:"apto"     },
+  { id:"a4", tutor_id:"t1", nome:"Mel",   especie:"cachorro", raca:"Beagle",           peso:14,  idade:2, sexo:"F", tipo_sanguineo:"DEA 1.1+", status:"cadastrado"},
+  { id:"a5", tutor_id:"t2", nome:"Mia",   especie:"gato",     raca:"Persa",            peso:4.8, idade:4, sexo:"F", tipo_sanguineo:"B",        status:"coletado" },
+];
+const TR0 = [
+  { id:"tr1", animal_id:"a1", apto:true, data_triagem:daysAgo(100), observacoes:"", responsavel:"Dra. Carla" },
+  { id:"tr2", animal_id:"a2", apto:true, data_triagem:daysAgo(65),  observacoes:"", responsavel:"Dr. Felipe" },
+  { id:"tr3", animal_id:"a3", apto:true, data_triagem:daysAgo(10),  observacoes:"", responsavel:"Dra. Carla" },
+  { id:"tr4", animal_id:"a5", apto:true, data_triagem:daysAgo(80),  observacoes:"", responsavel:"Dr. Felipe" },
+];
+const C0 = [
+  { id:"c1", animal_id:"a1", data_coleta:daysAgo(95), volume_ml:450, responsavel:"Dra. Carla"  },
+  { id:"c2", animal_id:"a2", data_coleta:daysAgo(60), volume_ml:50,  responsavel:"Dr. Felipe"  },
+  { id:"c3", animal_id:"a5", data_coleta:daysAgo(76), volume_ml:50,  responsavel:"Dra. Carla"  },
+];
+const M0 = [{ id:"m1", ano:new Date().getFullYear(), mes:new Date().getMonth()+1, meta_caes:8, meta_gatos:4 }];
+
+const R = "#dc2626"; const G = "#16a34a"; const Y = "#d97706";
+const MU = "#64748b"; const BO = "#e2e8f0"; const TX = "#0f172a";
+const STAT = {
+  cadastrado: ["#eff6ff","#3b82f6","Cadastrado"],
+  triagem:    ["#fffbeb","#d97706","Em Triagem"],
+  apto:       ["#f0fdf4","#16a34a","Apto"],
+  inapto:     ["#fef2f2","#dc2626","Inapto"],
+  coletado:   ["#f5f3ff","#7c3aed","Coletado"],
 };
-if(!user)return(<div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0f172a,#1e1b4b)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}><div style={{background:"#fff",borderRadius:24,padding:40,width:"100%",maxWidth:380,textAlign:"center"}}><div style={{fontSize:48,marginBottom:16}}>🩸</div><h1 style={{fontSize:24,fontWeight:900,marginBottom:4}}>HemoVet</h1><p style={{color:"#64748b",marginBottom:28}}>Banco de Sangue Animal</p><div style={{marginBottom:16,textAlign:"left"}}><label style={{fontSize:12,fontWeight:700,color:"#64748b",textTransform:"uppercase",display:"block",marginBottom:6}}>Login</label><input style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:15,boxSizing:"border-box"}} value={loginV} onChange={e=>setLoginV(e.target.value)} placeholder="gabrielle"/></div><div style={{marginBottom:20,textAlign:"left"}}><label style={{fontSize:12,fontWeight:700,color:"#64748b",textTransform:"uppercase",display:"block",marginBottom:6}}>Senha</label><input style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:15,boxSizing:"border-box"}} type="password" value={senhaV} onChange={e=>setSenhaV(e.target.value)} placeholder="123456"/></div>{err&&<div style={{color:"#dc2626",marginBottom:14,background:"#fef2f2",borderRadius:8,padding:"8px 12px",fontSize:13}}>{err}</div>}<button onClick={doLogin} style={{width:"100%",padding:13,background:"#dc2626",color:"#fff",border:"none",borderRadius:11,fontWeight:700,fontSize:15,cursor:"pointer"}}>Entrar</button><p style={{marginTop:14,fontSize:12,color:"#64748b"}}>Login: gabrielle · Senha: 123456</p></div></div>);
-return(<div style={{fontFamily:"sans-serif",background:"#f8fafc",minHeight:"100vh",paddingBottom:72}}><header style={{background:"#0f172a",padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:40}}><div style={{color:"#fff",fontWeight:900,fontSize:16}}>🩸 HemoVet</div><button onClick={()=>setUser(null)} style={{background:"#1e293b",border:"none",borderRadius:8,color:"#94a3b8",padding:"6px 12px",fontSize:12,cursor:"pointer"}}>Sair</button></header><div style={{padding:20,textAlign:"center",marginTop:40}}><div style={{fontSize:48,marginBottom:16}}>✅</div><h2 style={{fontSize:22,fontWeight:900,color:"#0f172a",marginBottom:8}}>App funcionando!</h2><p style={{color:"#64748b",fontSize:14}}>Logado como {user.nome}</p></div></div>);
+
+const INP = { width:"100%", padding:"11px 14px", borderRadius:10, border:"1.5px solid #e2e8f0", fontSize:15, fontFamily:"inherit", color:TX, outline:"none", background:"#fff", boxSizing:"border-box", WebkitAppearance:"none" };
+const SEL = { ...INP, appearance:"none", WebkitAppearance:"none" };
+
+const Bdg = ({s}) => { const [bg,cl,lb]=STAT[s]||STAT.cadastrado; return <span style={{background:bg,color:cl,border:`1px solid ${cl}33`,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{lb}</span>; };
+
+const Btn = ({children,onClick,v="red",full,style:ex={}}) => {
+  const VS = { red:{background:R,color:"#fff"}, sec:{background:"#f1f5f9",color:TX}, ghost:{background:"transparent",color:MU}, danger:{background:"#fef2f2",color:R,border:"1px solid #fca5a5"}, green:{background:G,color:"#fff"}, outline:{background:"#fff",color:R,border:`1.5px solid ${R}`} };
+  return <button style={{border:"none",borderRadius:10,fontWeight:700,fontSize:14,padding:"11px 20px",cursor:"pointer",fontFamily:"inherit",width:full?"100%":"auto",WebkitTapHighlightColor:"transparent",...VS[v],...ex}} onClick={onClick}>{children}</button>;
+};
+
+const FLD = ({label,children}) => (
+  <div style={{marginBottom:16}}>
+    <label style={{display:"block",fontSize:12,fontWeight:700,color:MU,marginBottom:6,textTransform:"uppercase",letterSpacing:.5}}>{label}</label>
+    {children}
+  </div>
+);
+
+const Sheet = ({title, onClose, children}) => (
+  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
+    <div style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:"0 0 env(safe-area-inset-bottom,16px)",maxWidth:600,width:"100%",maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 -8px 40px rgba(0,0,0,.18)"}} onClick={e=>e.stopPropagation()}>
+      {/* drag handle */}
+      <div style={{display:"flex",justifyContent:"center",padding:"12px 0 0"}}>
+        <div style={{width:36,height:4,background:"#e2e8f0",borderRadius:4}}/>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 20px 14px"}}>
+        <h2 style={{margin:0,fontSize:17,fontWeight:800,color:TX}}>{title}</h2>
+        <button onClick={onClose} style={{border:"none",background:"#f1f5f9",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:18,color:MU,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+      </div>
+      <div style={{overflowY:"auto",padding:"0 20px 24px",flex:1}}>{children}</div>
+    </div>
+  </div>
+);
+
+const Toast = ({msg,ok}) => <div style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",zIndex:2000,background:ok?"#f0fdf4":"#fef2f2",color:ok?"#16a34a":"#dc2626",border:`1px solid ${ok?"#bbf7d0":"#fca5a5"}`,borderRadius:12,padding:"11px 20px",fontWeight:700,fontSize:13,boxShadow:"0 8px 24px rgba(0,0,0,.15)",whiteSpace:"nowrap"}}>{ok?"✅":"❌"} {msg}</div>;
+
+// ─── CARD ─────────────────────────────────────────────────────────────────────
+const Card = ({children,style={}}) => <div style={{background:"#fff",borderRadius:14,border:`1px solid ${BO}`,padding:16,...style}}>{children}</div>;
+
+function App() {
+  const [user,    setUser]    = useState(null);
+  const [tab,     setTab]     = useState("dashboard");
+  const [tutores, setTutores] = useState(T0);
+  const [animais, setAnimais] = useState(A0);
+  const [triagens,setTriagens]= useState(TR0);
+  const [coletas, setColetas] = useState(C0);
+  const [metas,   setMetas]   = useState(M0);
+  const [modal,   setModal]   = useState(null);
+  const [form,    setForm]    = useState({});
+  const [toast,   setToast]   = useState(null);
+  const [srch,    setSrch]    = useState("");
+  const [loginV,  setLoginV]  = useState("");
+  const [senhaV,  setSenhaV]  = useState("");
+  const [loginErr,setLoginErr]= useState("");
+
+  const showToast = (msg,ok=true) => { setToast({msg,ok}); setTimeout(()=>setToast(null),2500); };
+  const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+  const openModal  = useCallback((type,payload={},initForm={}) => { setModal({type,payload}); setForm(initForm); },[]);
+  const closeModal = useCallback(() => { setModal(null); setForm({}); },[]);
+
+  const doLogin = () => {
+    const u=USERS.find(x=>x.login===loginV.trim()&&x.senha===senhaV);
+    if(u){ setUser(u); setLoginErr(""); } else setLoginErr("Login ou senha incorretos.");
+  };
+
+  const lastCol = useCallback((aid)=>[...coletas].sort((a,b)=>new Date(b.data_coleta)-new Date(a.data_coleta)).find(c=>c.animal_id===aid),[coletas]);
+  const isElig  = useCallback((a)=>{ const l=lastCol(a.id); if(!l)return a.status==="apto"; return daysSince(l.data_coleta)>=90; },[lastCol]);
+  const dLeft   = useCallback((a)=>{ const l=lastCol(a.id); if(!l)return 0; return Math.max(0,90-daysSince(l.data_coleta)); },[lastCol]);
+  const isAlert = useCallback((a)=>{ const d=dLeft(a); return d>0&&d<=14; },[dLeft]);
+  const nowM = new Date().getMonth()+1, nowY = new Date().getFullYear();
+
+  const stats = useMemo(()=>{
+    const mc=coletas.filter(c=>{ const d=new Date(c.data_coleta+"T00:00:00"); return d.getMonth()+1===nowM&&d.getFullYear()===nowY; });
+    const meta=metas.find(m=>m.ano===nowY&&m.mes===nowM);
+    return {
+      total:animais.length,
+      caes:animais.filter(a=>a.especie==="cachorro").length,
+      gatos:animais.filter(a=>a.especie==="gato").length,
+      aptos:animais.filter(a=>a.status==="apto"||a.status==="coletado").length,
+      prontos:animais.filter(a=>isElig(a)&&(a.status==="apto"||a.status==="coletado")).length,
+      aguard:animais.filter(a=>{ const l=lastCol(a.id); return l&&daysSince(l.data_coleta)<90; }).length,
+      alertas:animais.filter(isAlert).length,
+      coletasMes:mc.length,
+      cc:mc.filter(c=>animais.find(a=>a.id===c.animal_id)?.especie==="cachorro").length,
+      cg:mc.filter(c=>animais.find(a=>a.id===c.animal_id)?.especie==="gato").length,
+      metaCaes:meta?.meta_caes||0, metaGatos:meta?.meta_gatos||0,
+      metaTotal:(meta?.meta_caes||0)+(meta?.meta_gatos||0),
+    };
+  },[animais,coletas,metas,isElig,isAlert,lastCol,nowM,nowY]);
+
+  const pct = stats.metaTotal>0?Math.min(100,Math.round(stats.coletasMes/stats.metaTotal*100)):0;
+  const alertAnimais   = useMemo(()=>animais.filter(isAlert).sort((a,b)=>dLeft(a)-dLeft(b)),[animais,isAlert,dLeft]);
+  const prontosAnimais = useMemo(()=>animais.filter(a=>isElig(a)&&(a.status==="apto"||a.status==="coletado")),[animais,isElig]);
+  const aptosParaColeta= useMemo(()=>animais.filter(a=>a.status==="apto"||a.status==="coletado"),[animais]);
+  const tutor = (tid) => tutores.find(x=>x.id===tid);
+
+  // CRUD
+  const saveTutor = () => {
+    if(!form.nome?.trim())return;
+    if(form.id) setTutores(p=>p.map(x=>x.id===form.id?{...x,...form}:x));
+    else setTutores(p=>[...p,{...form,id:uid()}]);
+    showToast(form.id?"Tutor atualizado!":"Tutor cadastrado!"); closeModal();
+  };
+  const delTutor = (id) => {
+    const aids=animais.filter(a=>a.tutor_id===id).map(a=>a.id);
+    setTutores(p=>p.filter(x=>x.id!==id));
+    setAnimais(p=>p.filter(a=>a.tutor_id!==id));
+    setTriagens(p=>p.filter(t=>!aids.includes(t.animal_id)));
+    setColetas(p=>p.filter(c=>!aids.includes(c.animal_id)));
+    showToast("Tutor excluído."); closeModal();
+  };
+  const saveAnimal = () => {
+    if(!form.nome?.trim()||!form.especie||!form.tutor_id)return;
+    if(form.id) setAnimais(p=>p.map(x=>x.id===form.id?{...x,...form}:x));
+    else setAnimais(p=>[...p,{...form,id:uid(),status:"cadastrado"}]);
+    showToast(form.id?"Animal atualizado!":"Animal cadastrado!"); closeModal();
+  };
+  const delAnimal = (id) => {
+    setAnimais(p=>p.filter(x=>x.id!==id));
+    setTriagens(p=>p.filter(x=>x.animal_id!==id));
+    setColetas(p=>p.filter(x=>x.animal_id!==id));
+    showToast("Animal excluído."); closeModal();
+  };
+  const saveTriagem = () => {
+    const aid=modal.payload.animalId;
+    if(!form.apto)return;
+    const apto=form.apto==="true";
+    setTriagens(p=>[...p,{id:uid(),animal_id:aid,apto,data_triagem:form.data_triagem||todayStr(),observacoes:form.observacoes||"",responsavel:form.responsavel||""}]);
+    setAnimais(p=>p.map(x=>x.id===aid?{...x,status:apto?"apto":"inapto"}:x));
+    showToast("Triagem registrada!"); closeModal();
+  };
+  const saveColeta = () => {
+    const aid=modal.payload.animalId;
+    if(!form.data_coleta||!form.volume_ml)return;
+    setColetas(p=>[...p,{id:uid(),animal_id:aid,data_coleta:form.data_coleta,volume_ml:parseFloat(form.volume_ml),responsavel:form.responsavel||"",observacoes:form.observacoes||""}]);
+    setAnimais(p=>p.map(x=>x.id===aid?{...x,status:"coletado"}:x));
+    showToast("Coleta registrada!"); closeModal();
+  };
+  const delColeta = (id) => { setColetas(p=>p.filter(x=>x.id!==id)); showToast("Coleta excluída."); closeModal(); };
+  const saveMeta = () => {
+    const ano=parseInt(form.ano), mes=parseInt(form.mes);
+    if(!ano||!mes)return;
+    const d={ano,mes,meta_caes:parseInt(form.meta_caes)||0,meta_gatos:parseInt(form.meta_gatos)||0};
+    const ex=metas.find(m=>m.ano===ano&&m.mes===mes&&m.id!==form.id);
+    if(ex) setMetas(p=>p.map(m=>m.id===ex.id?{...m,...d}:m));
+    else if(form.id) setMetas(p=>p.map(m=>m.id===form.id?{...m,...d}:m));
+    else setMetas(p=>[...p,{...d,id:uid()}]);
+    showToast("Meta salva!"); closeModal();
+  };
+  const delMeta = (id) => { setMetas(p=>p.filter(x=>x.id!==id)); showToast("Meta excluída."); };
+
+  // ── LOGIN ──────────────────────────────────────────────────────────────────
+  if(!user) return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#0f172a 0%,#1e1b4b 60%,#0f172a 100%)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
+      <div style={{background:"#fff",borderRadius:24,padding:"40px 28px",width:"100%",maxWidth:380,boxShadow:"0 32px 80px rgba(0,0,0,.45)"}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{width:64,height:64,background:"#fee2e2",borderRadius:18,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,margin:"0 auto 16px"}}>🩸</div>
+          <h1 style={{margin:"0 0 4px",fontSize:24,fontWeight:900,color:TX}}>HemoVet</h1>
+          <p style={{margin:0,color:MU,fontSize:14}}>Banco de Sangue Animal</p>
+        </div>
+        <FLD label="Login"><input style={INP} value={loginV} onChange={e=>setLoginV(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doLogin()} placeholder="gabrielle" autoFocus/></FLD>
+        <div style={{marginBottom:20}}><FLD label="Senha"><input style={INP} type="password" value={senhaV} onChange={e=>setSenhaV(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doLogin()} placeholder="123456"/></FLD></div>
+        {loginErr&&<div style={{color:R,fontSize:13,marginBottom:14,background:"#fef2f2",borderRadius:8,padding:"8px 12px"}}>{loginErr}</div>}
+        <Btn full onClick={doLogin}>Entrar</Btn>
+        <p style={{textAlign:"center",marginTop:14,fontSize:12,color:MU}}>Login: <strong>gabrielle</strong> · Senha: <strong>123456</strong></p>
+      </div>
+    </div>
+  );
+
+  // ── BOTTOM NAV ─────────────────────────────────────────────────────────────
+  const NAV = [
+    { id:"dashboard", icon:"◎",  label:"Início" },
+    { id:"animais",   icon:"🐾", label:"Animais" },
+    { id:"tutores",   icon:"👤", label:"Tutores" },
+    { id:"coletas",   icon:"🩸", label:"Coletas" },
+    { id:"metas",     icon:"🎯", label:"Metas"   },
+  ];
+
+  return (
+    <div style={{fontFamily:"'DM Sans','Segoe UI',sans-serif",background:"#f8fafc",minHeight:"100vh",paddingBottom:72}}>
+
+      {/* ── HEADER ── */}
+      <header style={{background:"#0f172a",padding:"16px 20px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:40}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:32,height:32,background:R,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>🩸</div>
+          <div>
+            <div style={{color:"#fff",fontWeight:900,fontSize:15,lineHeight:1}}>HemoVet</div>
+            <div style={{color:"#64748b",fontSize:11}}>Banco de Sangue Animal</div>
+          </div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          {stats.alertas>0&&<div style={{background:R,color:"#fff",borderRadius:20,padding:"2px 8px",fontSize:11,fontWeight:700}}>⚠️ {stats.alertas}</div>}
+          <button onClick={()=>setUser(null)} style={{background:"#1e293b",border:"none",borderRadius:8,color:"#94a3b8",padding:"6px 10px",fontSize:12,cursor:"pointer"}}>Sair</button>
+        </div>
+      </header>
+
+      {/* ── CONTENT ── */}
+      <div style={{padding:"16px 16px 0",maxWidth:640,margin:"0 auto"}}>
+
+        {/* ═══ DASHBOARD ═══ */}
+        {tab==="dashboard"&&<div>
+          <h2 style={{fontSize:18,fontWeight:900,marginBottom:14,color:TX}}>Dashboard</h2>
+
+          {/* hero coletas */}
+          <div style={{background:"linear-gradient(135deg,#dc2626,#7c3aed)",borderRadius:16,padding:20,marginBottom:14,color:"#fff"}}>
+            <div style={{fontSize:11,fontWeight:600,opacity:.8,marginBottom:2,letterSpacing:.5}}>COLETAS EM {mName(nowM).toUpperCase()} / {nowY}</div>
+            <div style={{fontSize:52,fontWeight:900,lineHeight:1,marginBottom:4}}>{stats.coletasMes}</div>
+            <div style={{fontSize:12,opacity:.8}}>{sIcon("cachorro")} {stats.cc} cães · {sIcon("gato")} {stats.cg} gatos</div>
+            {stats.metaTotal>0&&<>
+              <div style={{background:"rgba(255,255,255,.2)",borderRadius:8,height:7,overflow:"hidden",marginTop:12}}>
+                <div style={{background:"#fff",height:"100%",borderRadius:8,width:`${pct}%`}}/>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",marginTop:5,fontSize:11,opacity:.85}}>
+                <span>Meta: {stats.metaTotal} coletas</span>
+                <span>{pct}%</span>
+              </div>
+            </>}
+          </div>
+
+          {/* stat cards 2x2 */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+            {[
+              {l:"Cadastrados",v:stats.total,  s:`${stats.caes}🐶 ${stats.gatos}🐱`,c:"#3b82f6"},
+              {l:"Aptos",       v:stats.aptos,  s:"triagem aprovada",                c:"#10b981"},
+              {l:"Aguardando",  v:stats.aguard, s:"dentro do prazo 90d",             c:"#8b5cf6"},
+              {l:"P/ Coletar",  v:stats.prontos,s:"disponíveis agora",              c:R},
+            ].map((x,i)=>(
+              <div key={i} style={{background:"#fff",borderRadius:12,border:`1px solid ${BO}`,padding:14,position:"relative",overflow:"hidden"}}>
+                <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:x.c}}/>
+                <div style={{fontSize:26,fontWeight:900,color:x.c,lineHeight:1}}>{x.v}</div>
+                <div style={{fontSize:12,fontWeight:700,marginTop:2,color:TX}}>{x.l}</div>
+                <div style={{fontSize:10,color:MU,marginTop:1}}>{x.s}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* alertas */}
+          {alertAnimais.length>0&&<Card style={{marginBottom:14,border:"1.5px solid #fca5a5"}}>
+            <div style={{fontWeight:700,fontSize:13,color:R,marginBottom:12}}>⚠️ Próximos a Liberar</div>
+            {alertAnimais.map(a=>{
+              const d=dLeft(a);
+              return <div key={a.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${BO}`}}>
+                <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                  <div style={{width:36,height:36,background:"#fee2e2",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{sIcon(a.especie)}</div>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:14}}>{a.nome}</div>
+                    <div style={{fontSize:12,color:MU}}>{tutor(a.tutor_id)?.nome}</div>
+                  </div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontWeight:900,fontSize:18,color:d<=7?R:Y}}>{d}d</div>
+                  <div style={{fontSize:10,color:MU}}>para liberar</div>
+                </div>
+              </div>;
+            })}
+          </Card>}
+
+          {/* prontos */}
+          <Card style={{border:"1.5px solid #bbf7d0"}}>
+            <div style={{fontWeight:700,fontSize:13,color:G,marginBottom:12}}>✅ Prontos para Coletar</div>
+            {prontosAnimais.length===0
+              ?<p style={{color:MU,fontSize:13,margin:0}}>Nenhum disponível agora.</p>
+              :prontosAnimais.map(a=>{
+                const last=lastCol(a.id);
+                return <div key={a.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${BO}`}}>
+                  <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                    <div style={{width:36,height:36,background:"#dcfce7",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{sIcon(a.especie)}</div>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:14}}>{a.nome}</div>
+                      <div style={{fontSize:12,color:MU}}>{a.tipo_sanguineo}</div>
+                    </div>
+                  </div>
+                  <Btn v="outline" style={{fontSize:12,padding:"8px 14px"}} onClick={()=>openModal("coleta",{animalId:a.id},{data_coleta:todayStr()})}>Coletar</Btn>
+                </div>;
+              })
+            }
+          </Card>
+        </div>}
+
+        {/* ═══ ANIMAIS ═══ */}
+        {tab==="animais"&&<div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <h2 style={{fontSize:18,fontWeight:900,margin:0,color:TX}}>Animais <span style={{color:MU,fontSize:14,fontWeight:400}}>({animais.length})</span></h2>
+            <Btn style={{fontSize:13,padding:"9px 14px"}} onClick={()=>openModal("editAnimal",{},{})}>+ Novo</Btn>
+          </div>
+          <input style={{...INP,marginBottom:12}} placeholder="🔍 Buscar nome ou tutor..." value={srch} onChange={e=>setSrch(e.target.value)}/>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {animais.filter(a=>{ const t=tutor(a.tutor_id); const ms=srch.toLowerCase(); return !ms||a.nome.toLowerCase().includes(ms)||(t?.nome||"").toLowerCase().includes(ms); }).map(a=>{
+              const t=tutor(a.tutor_id), last=lastCol(a.id), al=isAlert(a);
+              const canTriagem = a.status==="cadastrado";
+              const canColetar = (a.status==="apto"||a.status==="coletado")&&isElig(a);
+              return (
+                <Card key={a.id} style={{border:al?"1.5px solid #fde68a":undefined}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                      <div style={{width:42,height:42,background:"#f1f5f9",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{sIcon(a.especie)}</div>
+                      <div>
+                        <div style={{fontWeight:800,fontSize:15,color:TX}}>{a.nome}</div>
+                        <div style={{fontSize:12,color:MU}}>{t?.nome} · {a.raca||"—"}</div>
+                        {al&&<div style={{fontSize:11,color:Y,fontWeight:600,marginTop:2}}>⚠️ {dLeft(a)}d para liberar</div>}
+                      </div>
+                    </div>
+                    <Bdg s={a.status}/>
+                  </div>
+                  <div style={{display:"flex",gap:8,fontSize:12,color:MU,marginBottom:12,flexWrap:"wrap"}}>
+                    <span>🩸 {a.tipo_sanguineo||"—"}</span>
+                    <span>⚖️ {a.peso?`${a.peso}kg`:"—"}</span>
+                    <span>{a.sexo==="M"?"♂ Macho":a.sexo==="F"?"♀ Fêmea":"—"}</span>
+                    {last&&<span>Última coleta: {fmtDate(last.data_coleta)}</span>}
+                  </div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {canTriagem&&<Btn v="sec" style={{fontSize:12,padding:"8px 14px",color:Y,flex:1}} onClick={()=>openModal("triagem",{animalId:a.id,animalNome:a.nome},{data_triagem:todayStr()})}>Triagem</Btn>}
+                    {canColetar&&<Btn v="green" style={{fontSize:12,padding:"8px 14px",flex:1}} onClick={()=>openModal("coleta",{animalId:a.id},{data_coleta:todayStr()})}>🩸 Coletar</Btn>}
+                    <Btn v="sec" style={{fontSize:12,padding:"8px 12px"}} onClick={()=>openModal("detalhe",{animalId:a.id},{})}>👁</Btn>
+                    <Btn v="sec" style={{fontSize:12,padding:"8px 12px"}} onClick={()=>openModal("editAnimal",{},{...a})}>✏️</Btn>
+                    <Btn v="danger" style={{fontSize:12,padding:"8px 12px"}} onClick={()=>openModal("delAnimal",{animalId:a.id,animalNome:a.nome},{})}>🗑</Btn>
+                  </div>
+                </Card>
+              );
+            })}
+            {animais.length===0&&<p style={{color:MU,textAlign:"center",padding:32}}>Nenhum animal cadastrado.</p>}
+          </div>
+        </div>}
+
+        {/* ═══ TUTORES ═══ */}
+        {tab==="tutores"&&<div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <h2 style={{fontSize:18,fontWeight:900,margin:0,color:TX}}>Tutores <span style={{color:MU,fontSize:14,fontWeight:400}}>({tutores.length})</span></h2>
+            <Btn style={{fontSize:13,padding:"9px 14px"}} onClick={()=>openModal("editTutor",{},{})}>+ Novo</Btn>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {tutores.map(t=>{
+              const seus=animais.filter(a=>a.tutor_id===t.id);
+              return (
+                <Card key={t.id}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                      <div style={{width:42,height:42,background:"#f1f5f9",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>👤</div>
+                      <div>
+                        <div style={{fontWeight:800,fontSize:15,color:TX}}>{t.nome}</div>
+                        <div style={{fontSize:12,color:MU}}>{t.cidade||"—"}</div>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:6}}>
+                      <Btn v="sec" style={{fontSize:13,padding:"7px 10px"}} onClick={()=>openModal("editTutor",{},{...t})}>✏️</Btn>
+                      <Btn v="danger" style={{fontSize:13,padding:"7px 10px"}} onClick={()=>openModal("delTutor",{tutorId:t.id,tutorNome:t.nome},{})}>🗑</Btn>
+                    </div>
+                  </div>
+                  {t.telefone&&<div style={{fontSize:13,color:MU,marginBottom:3}}>📞 {t.telefone}</div>}
+                  {t.email&&<div style={{fontSize:13,color:MU,marginBottom:10}}>{t.email}</div>}
+                  {seus.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{seus.map(a=><span key={a.id} style={{background:"#f1f5f9",borderRadius:6,padding:"3px 9px",fontSize:12,fontWeight:500}}>{sIcon(a.especie)} {a.nome}</span>)}</div>}
+                </Card>
+              );
+            })}
+          </div>
+        </div>}
+
+        {/* ═══ COLETAS ═══ */}
+        {tab==="coletas"&&<div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <h2 style={{fontSize:18,fontWeight:900,margin:0,color:TX}}>Coletas <span style={{color:MU,fontSize:14,fontWeight:400}}>({coletas.length})</span></h2>
+            <Btn style={{fontSize:13,padding:"9px 14px"}} onClick={()=>openModal("novaColetaPicker",{},{data_coleta:todayStr()})}>+ Nova Coleta</Btn>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {[...coletas].sort((a,b)=>new Date(b.data_coleta)-new Date(a.data_coleta)).map(c=>{
+              const a=animais.find(x=>x.id===c.animal_id), t=tutores.find(x=>x.id===a?.tutor_id);
+              const prox=new Date(c.data_coleta+"T00:00:00"); prox.setDate(prox.getDate()+90);
+              const lib=daysSince(c.data_coleta)>=90;
+              return (
+                <Card key={c.id}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                    <div>
+                      <div style={{fontWeight:800,fontSize:15}}>{a?.nome||"—"} {a&&sIcon(a.especie)}</div>
+                      <div style={{fontSize:12,color:MU}}>{t?.nome}</div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontWeight:700,fontSize:14,color:R}}>{c.volume_ml} mL</div>
+                      <div style={{fontSize:11,color:MU}}>{fmtDate(c.data_coleta)}</div>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:8,fontSize:12,color:MU,marginBottom:10,flexWrap:"wrap"}}>
+                    <span>🩸 {a?.tipo_sanguineo||"—"}</span>
+                    {c.responsavel&&<span>👩‍⚕️ {c.responsavel}</span>}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{fontSize:12,fontWeight:600,color:lib?G:MU}}>
+                      {lib?"✅ Liberado para nova coleta":`Próxima: ${prox.toLocaleDateString("pt-BR")}`}
+                    </div>
+                    <Btn v="danger" style={{fontSize:12,padding:"6px 10px"}} onClick={()=>openModal("delColeta",{coletaId:c.id,dataColeta:c.data_coleta},{})}>🗑</Btn>
+                  </div>
+                </Card>
+              );
+            })}
+            {coletas.length===0&&<p style={{color:MU,textAlign:"center",padding:32}}>Nenhuma coleta registrada.</p>}
+          </div>
+        </div>}
+
+        {/* ═══ METAS ═══ */}
+        {tab==="metas"&&<div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <h2 style={{fontSize:18,fontWeight:900,margin:0,color:TX}}>Metas</h2>
+            <Btn style={{fontSize:13,padding:"9px 14px"}} onClick={()=>openModal("editMeta",{},{ano:nowY,mes:nowM,meta_caes:"",meta_gatos:""})}>+ Nova Meta</Btn>
+          </div>
+          {metas.length===0&&<p style={{color:MU,padding:20,textAlign:"center"}}>Nenhuma meta cadastrada.</p>}
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {metas.map(m=>{
+              const mc=coletas.filter(c=>{ const d=new Date(c.data_coleta+"T00:00:00"); return d.getMonth()+1===m.mes&&d.getFullYear()===m.ano; });
+              const ca=mc.filter(c=>animais.find(a=>a.id===c.animal_id)?.especie==="cachorro").length;
+              const ga=mc.filter(c=>animais.find(a=>a.id===c.animal_id)?.especie==="gato").length;
+              const tot=m.meta_caes+m.meta_gatos, real=mc.length, p2=tot>0?Math.min(100,Math.round(real/tot*100)):0;
+              const isCur=m.ano===nowY&&m.mes===nowM;
+              return (
+                <Card key={m.id} style={{border:isCur?`2px solid ${R}`:undefined}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                    <div>
+                      <div style={{fontWeight:800,fontSize:16}}>{mName(m.mes)} / {m.ano}</div>
+                      {isCur&&<div style={{fontSize:11,color:R,fontWeight:700}}>MÊS ATUAL</div>}
+                    </div>
+                    <div style={{display:"flex",gap:6}}>
+                      <Btn v="sec" style={{fontSize:13,padding:"7px 10px"}} onClick={()=>openModal("editMeta",{},{...m})}>✏️</Btn>
+                      <Btn v="danger" style={{fontSize:13,padding:"7px 10px"}} onClick={()=>delMeta(m.id)}>🗑</Btn>
+                    </div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                    <div style={{background:"#eff6ff",borderRadius:8,padding:12,textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,color:"#3b82f6"}}>{ca}/{m.meta_caes}</div><div style={{fontSize:11,color:MU}}>🐶 Cães</div></div>
+                    <div style={{background:"#fdf4ff",borderRadius:8,padding:12,textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,color:"#a855f7"}}>{ga}/{m.meta_gatos}</div><div style={{fontSize:11,color:MU}}>🐱 Gatos</div></div>
+                  </div>
+                  <div style={{background:"#f1f5f9",borderRadius:6,height:8,overflow:"hidden"}}>
+                    <div style={{width:`${p2}%`,height:"100%",background:p2>=100?G:R,borderRadius:6}}/>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",marginTop:6,fontSize:12,color:MU}}>
+                    <span>{real} de {tot} coletas</span><span>{p2}%</span>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </div>}
+
+      </div>{/* end content */}
+
+      {/* ── BOTTOM NAV ── */}
+      <nav style={{position:"fixed",bottom:0,left:0,right:0,background:"#fff",borderTop:`1px solid ${BO}`,display:"flex",zIndex:40,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
+        {NAV.map(({id,icon,label})=>(
+          <button key={id} onClick={()=>setTab(id)} style={{flex:1,border:"none",background:"transparent",padding:"10px 4px 8px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,WebkitTapHighlightColor:"transparent",position:"relative"}}>
+            {id==="dashboard"&&stats.alertas>0&&<div style={{position:"absolute",top:6,right:"calc(50% - 14px)",width:8,height:8,background:R,borderRadius:"50%"}}/>}
+            <span style={{fontSize:20}}>{icon}</span>
+            <span style={{fontSize:10,fontWeight:tab===id?700:400,color:tab===id?R:MU}}>{label}</span>
+            {tab===id&&<div style={{position:"absolute",bottom:0,left:"20%",right:"20%",height:2,background:R,borderRadius:2}}/>}
+          </button>
+        ))}
+      </nav>
+
+      {toast&&<Toast {...toast}/>}
+
+      {/* ═══ SHEETS (modais mobile) ═══ */}
+
+      {modal?.type==="editTutor"&&<Sheet title={form.id?"Editar Tutor":"Novo Tutor"} onClose={closeModal}>
+        <FLD label="Nome completo *"><input style={INP} value={form.nome||""} onChange={e=>sf("nome",e.target.value)} autoFocus/></FLD>
+        <FLD label="Telefone"><input style={INP} value={form.telefone||""} onChange={e=>sf("telefone",e.target.value)}/></FLD>
+        <FLD label="E-mail"><input style={INP} type="email" value={form.email||""} onChange={e=>sf("email",e.target.value)}/></FLD>
+        <FLD label="Cidade"><input style={INP} value={form.cidade||""} onChange={e=>sf("cidade",e.target.value)}/></FLD>
+        <div style={{display:"flex",gap:10,marginTop:4}}>
+          <Btn full onClick={saveTutor}>Salvar</Btn>
+          <Btn full v="sec" onClick={closeModal}>Cancelar</Btn>
+        </div>
+      </Sheet>}
+
+      {modal?.type==="delTutor"&&<Sheet title="Excluir Tutor" onClose={closeModal}>
+        <p style={{color:MU,fontSize:15,marginBottom:20}}>Excluir <strong>{modal.payload.tutorNome}</strong>? Os animais vinculados também serão removidos.</p>
+        <div style={{display:"flex",gap:10}}>
+          <Btn full v="danger" onClick={()=>delTutor(modal.payload.tutorId)}>Excluir</Btn>
+          <Btn full v="sec" onClick={closeModal}>Cancelar</Btn>
+        </div>
+      </Sheet>}
+
+      {(modal?.type==="editAnimal")&&<Sheet title={form.id?"Editar Animal":"Novo Animal"} onClose={closeModal}>
+        <FLD label="Tutor *"><select style={SEL} value={form.tutor_id||""} onChange={e=>sf("tutor_id",e.target.value)}><option value="">Selecionar tutor...</option>{tutores.map(t=><option key={t.id} value={t.id}>{t.nome}</option>)}</select></FLD>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <FLD label="Nome *"><input style={INP} value={form.nome||""} onChange={e=>sf("nome",e.target.value)}/></FLD>
+          <FLD label="Espécie *"><select style={SEL} value={form.especie||""} onChange={e=>sf("especie",e.target.value)}><option value="">Sel...</option><option value="cachorro">Cachorro</option><option value="gato">Gato</option></select></FLD>
+          <FLD label="Raça"><input style={INP} value={form.raca||""} onChange={e=>sf("raca",e.target.value)}/></FLD>
+          <FLD label="Sexo"><select style={SEL} value={form.sexo||""} onChange={e=>sf("sexo",e.target.value)}><option value="">Sel...</option><option value="M">Macho</option><option value="F">Fêmea</option></select></FLD>
+          <FLD label="Peso (kg)"><input style={INP} type="number" step="0.1" value={form.peso||""} onChange={e=>sf("peso",e.target.value)}/></FLD>
+          <FLD label="Idade (anos)"><input style={INP} type="number" value={form.idade||""} onChange={e=>sf("idade",e.target.value)}/></FLD>
+        </div>
+        <FLD label="Tipo Sanguíneo"><select style={SEL} value={form.tipo_sanguineo||""} onChange={e=>sf("tipo_sanguineo",e.target.value)}><option value="">Selecionar...</option><option value="DEA 1.1+">DEA 1.1+ (cão)</option><option value="DEA 1.1-">DEA 1.1- (cão)</option><option value="A">A (gato)</option><option value="B">B (gato)</option><option value="AB">AB (gato)</option></select></FLD>
+        <div style={{display:"flex",gap:10,marginTop:4}}>
+          <Btn full onClick={saveAnimal}>Salvar</Btn>
+          <Btn full v="sec" onClick={closeModal}>Cancelar</Btn>
+        </div>
+      </Sheet>}
+
+      {modal?.type==="delAnimal"&&<Sheet title="Excluir Animal" onClose={closeModal}>
+        <p style={{color:MU,fontSize:15,marginBottom:20}}>Excluir <strong>{modal.payload.animalNome}</strong>? Triagens e coletas serão removidas junto.</p>
+        <div style={{display:"flex",gap:10}}>
+          <Btn full v="danger" onClick={()=>delAnimal(modal.payload.animalId)}>Excluir</Btn>
+          <Btn full v="sec" onClick={closeModal}>Cancelar</Btn>
+        </div>
+      </Sheet>}
+
+      {modal?.type==="detalhe"&&(()=>{
+        const a=animais.find(x=>x.id===modal.payload.animalId); if(!a)return null;
+        const t=tutor(a.tutor_id);
+        const aT=triagens.filter(x=>x.animal_id===a.id);
+        const aC=[...coletas.filter(x=>x.animal_id===a.id)].sort((x,y)=>new Date(y.data_coleta)-new Date(x.data_coleta));
+        return <Sheet title={`${sIcon(a.especie)} ${a.nome}`} onClose={closeModal}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+            {[["Tutor",t?.nome],["Raça",a.raca],["Sexo",a.sexo==="M"?"Macho":a.sexo==="F"?"Fêmea":"—"],["Peso",a.peso?`${a.peso}kg`:"—"],["Idade",a.idade?`${a.idade} anos`:"—"],["Tipo Sang.",a.tipo_sanguineo]].map(([l,v])=>(
+              <div key={l} style={{background:"#f8fafc",borderRadius:8,padding:10}}><div style={{fontSize:10,color:MU,fontWeight:700,textTransform:"uppercase"}}>{l}</div><div style={{fontSize:13,fontWeight:600,marginTop:2}}>{v||"—"}</div></div>
+            ))}
+          </div>
+          <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>Triagens ({aT.length})</div>
+          {aT.length===0?<p style={{color:MU,fontSize:13}}>Nenhuma triagem.</p>:aT.map(tr=>(
+            <div key={tr.id} style={{background:tr.apto?"#f0fdf4":"#fef2f2",borderRadius:8,padding:10,marginBottom:6,display:"flex",justifyContent:"space-between"}}>
+              <Bdg s={tr.apto?"apto":"inapto"}/><span style={{fontSize:12,color:MU}}>{fmtDate(tr.data_triagem)}</span>
+            </div>
+          ))}
+          <div style={{fontWeight:700,fontSize:13,margin:"14px 0 8px"}}>Coletas ({aC.length})</div>
+          {aC.length===0?<p style={{color:MU,fontSize:13}}>Nenhuma coleta.</p>:aC.map(c=>(
+            <div key={c.id} style={{background:"#f8fafc",borderRadius:8,padding:10,marginBottom:6,display:"flex",justifyContent:"space-between"}}>
+              <div><div style={{fontWeight:600,fontSize:13}}>{fmtDate(c.data_coleta)}</div><div style={{fontSize:11,color:MU}}>{c.responsavel}</div></div>
+              <div style={{fontWeight:700,color:R}}>{c.volume_ml} mL</div>
+            </div>
+          ))}
+        </Sheet>;
+      })()}
+
+      {modal?.type==="triagem"&&<Sheet title={`Triagem — ${modal.payload.animalNome}`} onClose={closeModal}>
+        <FLD label="Resultado *">
+          <select style={SEL} value={form.apto||""} onChange={e=>sf("apto",e.target.value)}>
+            <option value="">Selecionar...</option>
+            <option value="true">✅ Apto para doação</option>
+            <option value="false">❌ Inapto</option>
+          </select>
+        </FLD>
+        <FLD label="Data da Triagem"><input style={INP} type="date" value={form.data_triagem||todayStr()} onChange={e=>sf("data_triagem",e.target.value)}/></FLD>
+        <FLD label="Responsável"><input style={INP} value={form.responsavel||""} onChange={e=>sf("responsavel",e.target.value)}/></FLD>
+        <FLD label="Observações"><textarea style={{...INP,minHeight:70,resize:"vertical"}} value={form.observacoes||""} onChange={e=>sf("observacoes",e.target.value)}/></FLD>
+        <div style={{display:"flex",gap:10,marginTop:4}}>
+          <Btn full onClick={saveTriagem}>Salvar Triagem</Btn>
+          <Btn full v="sec" onClick={closeModal}>Cancelar</Btn>
+        </div>
+      </Sheet>}
+
+      {modal?.type==="coleta"&&(()=>{
+        const a=animais.find(x=>x.id===modal.payload.animalId); if(!a)return null;
+        return <Sheet title={`Registrar Coleta`} onClose={closeModal}>
+          <div style={{background:"#f0fdf4",borderRadius:10,padding:12,marginBottom:16}}>
+            <div style={{fontWeight:700,fontSize:15}}>{sIcon(a.especie)} {a.nome}</div>
+            <div style={{fontSize:12,color:MU,marginTop:2}}>{a.raca||""} · Tipo {a.tipo_sanguineo||"—"} · {a.peso}kg</div>
+          </div>
+          <FLD label="Data da Coleta *"><input style={INP} type="date" value={form.data_coleta||todayStr()} onChange={e=>sf("data_coleta",e.target.value)}/></FLD>
+          <FLD label="Volume coletado (mL) *"><input style={INP} type="number" value={form.volume_ml||""} onChange={e=>sf("volume_ml",e.target.value)} placeholder="Ex: 450"/></FLD>
+          <FLD label="Responsável pela coleta"><input style={INP} value={form.responsavel||""} onChange={e=>sf("responsavel",e.target.value)}/></FLD>
+          <FLD label="Observações"><textarea style={{...INP,minHeight:60,resize:"vertical"}} value={form.observacoes||""} onChange={e=>sf("observacoes",e.target.value)}/></FLD>
+          <div style={{display:"flex",gap:10,marginTop:4}}>
+            <Btn full v="green" onClick={saveColeta}>🩸 Registrar Coleta</Btn>
+            <Btn full v="sec" onClick={closeModal}>Cancelar</Btn>
+          </div>
+        </Sheet>;
+      })()}
+
+      {modal?.type==="novaColetaPicker"&&<Sheet title="Nova Coleta — Selecionar Animal" onClose={closeModal}>
+        {aptosParaColeta.length===0
+          ?<p style={{color:MU,fontSize:14}}>Nenhum animal apto. Cadastre animais e realize triagem primeiro.</p>
+          :<>
+            <p style={{color:MU,fontSize:13,marginBottom:14}}>Toque no animal para registrar a coleta:</p>
+            {aptosParaColeta.map(a=>{
+              const t=tutor(a.tutor_id), last=lastCol(a.id), elig=isElig(a), dl2=dLeft(a);
+              return (
+                <div key={a.id} onClick={()=>openModal("coleta",{animalId:a.id},{data_coleta:todayStr()})}
+                  style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px",borderRadius:12,border:`1.5px solid ${elig?"#bbf7d0":dl2<=14?"#fde68a":BO}`,background:elig?"#f0fdf4":dl2<=14?"#fffbeb":"#fafafa",marginBottom:10,cursor:"pointer",WebkitTapHighlightColor:"transparent"}}>
+                  <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                    <div style={{width:40,height:40,background:"#f1f5f9",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{sIcon(a.especie)}</div>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:15}}>{a.nome}</div>
+                      <div style={{fontSize:12,color:MU}}>{t?.nome} · {a.tipo_sanguineo||"—"}</div>
+                    </div>
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    {elig
+                      ?<span style={{background:"#f0fdf4",color:G,border:"1px solid #bbf7d0",borderRadius:20,padding:"4px 10px",fontSize:12,fontWeight:700}}>✅ Disponível</span>
+                      :dl2<=14
+                        ?<span style={{background:"#fffbeb",color:Y,border:"1px solid #fde68a",borderRadius:20,padding:"4px 10px",fontSize:12,fontWeight:700}}>{dl2}d</span>
+                        :<span style={{background:"#f1f5f9",color:MU,borderRadius:20,padding:"4px 10px",fontSize:12,fontWeight:700}}>{dl2}d</span>
+                    }
+                    {last&&<div style={{fontSize:10,color:MU,marginTop:4}}>Última: {fmtDate(last.data_coleta)}</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        }
+        <Btn full v="sec" onClick={closeModal}>Cancelar</Btn>
+      </Sheet>}
+
+      {modal?.type==="delColeta"&&<Sheet title="Excluir Coleta" onClose={closeModal}>
+        <p style={{color:MU,fontSize:15,marginBottom:20}}>Excluir a coleta de <strong>{fmtDate(modal.payload.dataColeta)}</strong>?</p>
+        <div style={{display:"flex",gap:10}}>
+          <Btn full v="danger" onClick={()=>delColeta(modal.payload.coletaId)}>Excluir</Btn>
+          <Btn full v="sec" onClick={closeModal}>Cancelar</Btn>
+        </div>
+      </Sheet>}
+
+      {modal?.type==="editMeta"&&<Sheet title={form.id?"Editar Meta":"Nova Meta"} onClose={closeModal}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <FLD label="Mês"><select style={SEL} value={form.mes||nowM} onChange={e=>sf("mes",parseInt(e.target.value))}>{Array.from({length:12},(_,i)=><option key={i+1} value={i+1}>{mName(i+1)}</option>)}</select></FLD>
+          <FLD label="Ano"><input style={INP} type="number" value={form.ano||nowY} onChange={e=>sf("ano",parseInt(e.target.value))}/></FLD>
+          <FLD label="🐶 Meta Cães"><input style={INP} type="number" min={0} value={form.meta_caes||""} onChange={e=>sf("meta_caes",e.target.value)} placeholder="0"/></FLD>
+          <FLD label="🐱 Meta Gatos"><input style={INP} type="number" min={0} value={form.meta_gatos||""} onChange={e=>sf("meta_gatos",e.target.value)} placeholder="0"/></FLD>
+        </div>
+        <div style={{background:"#f1f5f9",borderRadius:8,padding:12,marginBottom:14,fontSize:13,color:MU}}>
+          Total da meta: <strong>{(parseInt(form.meta_caes)||0)+(parseInt(form.meta_gatos)||0)} coletas/mês</strong>
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          <Btn full onClick={saveMeta}>Salvar Meta</Btn>
+          <Btn full v="sec" onClick={closeModal}>Cancelar</Btn>
+        </div>
+      </Sheet>}
+
+    </div>
+  );
 }
-const root=ReactDOM.createRoot(document.getElementById("root"));
+
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<App/>);
-</script></body></html>
+</script>
+</body>
+</html>
